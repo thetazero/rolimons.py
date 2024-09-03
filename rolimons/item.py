@@ -11,9 +11,11 @@ class item:
 
     def __init__(self, id: int, itemdetails: dict = None):
         if itemdetails is None:
-            itemdetails = requests.get('https://api.rolimons.com/items/v1/itemdetails').json()
+            itemdetails = requests.get(
+                'https://api.rolimons.com/items/v1/itemdetails').json()
             if not itemdetails['success']:
-                raise RateLimitError('Rate limit exceeded for this itemdetails endpoint')
+                raise RateLimitError(
+                    'Rate limit exceeded for this itemdetails endpoint')
 
         try:
             item = itemdetails['items'][str(id)]
@@ -29,64 +31,77 @@ class item:
             self.hyped: bool = 1 in [item[8]]
             self.rare: bool = 1 in [item[9]]
         except KeyError:
-            raise InvalidItemDetails('Invalid itemdetails dictionary passed in')
+            raise InvalidItemDetails(
+                'Invalid itemdetails dictionary passed in')
 
     def get_sales_data(self):
         request = requests.get(f'https://www.rolimons.com/item/{self.id}')
         soup = BeautifulSoup(request.text, 'html.parser')
-        tags = [tag.get_text() for tag in soup.find_all('h5', attrs={'class': 'card-title mb-1 text-light text-truncate stat-data'})]
-        tags = [tags[3], tags[5], tags[11], tags[10], soup.find_all('div', attrs={'class': 'value-stat-data'})[0].get_text()]
+        tags = [tag.get_text() for tag in soup.find_all(
+            'h5', attrs={'class': 'card-title mb-1 text-light text-truncate stat-data'})]
+        tags = [tags[3], tags[5], tags[11], tags[10], soup.find_all(
+            'div', attrs={'class': 'value-stat-data'})[0].get_text()]
         return Sales(tags)
 
-    def get_recent_sales(self):
+    def get_recent_sales(self) -> list[Sale]:
         request = requests.get(f'https://www.rolimons.com/itemsales/{self.id}')
         soup = BeautifulSoup(request.text, 'html.parser')
-        timestamps = [tag.get_text() for tag in soup.find_all('div', attrs={'class': 'activity_entry_timestamp my-auto'})]
-        meta = soup.find_all('div', attrs={'class': 'activity_stats_section d-flex justify-content-around'})
+        timestamps = [tag.get_text() for tag in soup.find_all(
+            'div', attrs={'class': 'activity_entry_timestamp my-auto'})]
+        meta = soup.find_all(
+            'div', attrs={'class': 'activity_stats_section d-flex justify-content-around'})
         sales = []
         for i, timestamp in enumerate(timestamps):
-            sales_price = BeautifulSoup(str(meta[i]), 'html.parser').find_all('div', attrs={'class': 'pl-1'})[0].get_text()
-            sales_rap_change = [tag.get_text().replace('\n', '') for tag in BeautifulSoup(str(meta[i]), 'html.parser').find_all('div', attrs={'class': 'activity_stat_data'})]
-            sales.append(Sale([timestamp, sales_price, sales_rap_change[0], sales_rap_change[1]]))
+            sales_price = BeautifulSoup(str(meta[i]), 'html.parser').find_all(
+                'div', attrs={'class': 'pl-1'})[0].get_text()
+            sales_rap_change = [tag.get_text().replace('\n', '') for tag in BeautifulSoup(
+                str(meta[i]), 'html.parser').find_all('div', attrs={'class': 'activity_stat_data'})]
+            sales.append(
+                Sale([timestamp, sales_price, sales_rap_change[0], sales_rap_change[1]]))
         return sales
 
     def get_ownership_data(self):
         request = requests.get(f'https://www.rolimons.com/item/{self.id}')
         soup = BeautifulSoup(request.text, 'html.parser')
-        tags = [tag.get_text() for tag in soup.find_all('div', attrs={'class': 'value-stat-data'})]
+        tags = [tag.get_text() for tag in soup.find_all(
+            'div', attrs={'class': 'value-stat-data'})]
         return Ownership(tags)
 
     def get_owner_data(self):
         def index_segment(start, end, data):
             i = data.index(start)
             while 1:
-                if data[i:i + len(end)] == end: break
+                if data[i:i + len(end)] == end:
+                    break
                 i += 1
             return data[data.index(start):i].replace(start, '').strip()
 
         request = requests.get(f'https://www.rolimons.com/item/{self.id}').text
-        data = json.loads(index_segment('var all_copies_data                = ', '      var all_copies_data_count ', request)[:-1])
+        data = json.loads(index_segment('var all_copies_data                = ',
+                          '      var all_copies_data_count ', request)[:-1])
         return ItemOwners(data)
 
 
 class ItemOwners:
-  def __init__(self, data):
-    self.num_copies: int = int(data['num_copies'])
-    self.owner_ids: list[int] = data['owner_ids']
-    self.owner_names: list[str] = data['owner_names']
-    self.uaids: list[int] = data['uaids']
-    self.updated: list[int] = data['updated']
-    self.owner_membership: list[int] = data['owner_bc_levels']
+    def __init__(self, data):
+        self.num_copies: int = int(data['num_copies'])
+        self.owner_ids: list[int] = data['owner_ids']
+        self.owner_names: list[str] = data['owner_names']
+        self.uaids: list[int] = data['uaids']
+        self.updated: list[int] = data['updated']
+        self.owner_membership: list[int] = data['owner_bc_levels']
 
-    self.owners: list[dict] = [Owner(self, i, id) for i, id in enumerate(self.owner_ids)]
+        self.owners: list[dict] = [Owner(self, i, id)
+                                   for i, id in enumerate(self.owner_ids)]
 
-  def get_premium_owners(self) -> list[dict]:
-    return [self.owners[i] for i, o in enumerate(self.owner_membership) if o]
+    def get_premium_owners(self) -> list[dict]:
+        return [self.owners[i] for i, o in enumerate(self.owner_membership) if o]
+
 
 class Sales:
     def __init__(self, data: list):
         self.average_daily_sales: float = float(data[0])
-        self.rap_after_sale: int = int(data[1].replace(',' ,''))
+        self.rap_after_sale: int = int(data[1].replace(',', ''))
         self.original_price: int = data[2]
         self.sellers: int = data[3]
         self.best_price: int = int(data[4].replace(',', ''))
@@ -110,6 +125,7 @@ class Ownership:
         self.premium_owners: int = data[5]
         self.hoarded_copies: int = data[6]
         self.percent_hoarded: float = data[7].replace('%', '')
+
 
 class Owner:
     def __init__(self, obj: ItemOwners, i: int, id: int):
